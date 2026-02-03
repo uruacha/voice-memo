@@ -270,8 +270,22 @@ async function startRecording() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-        // MediaRecorder setup
-        const options = { mimeType: 'audio/webm' };
+        // MediaRecorder setup - Safari互換性を考慮
+        let mimeType = 'audio/webm';
+        if (!MediaRecorder.isTypeSupported('audio/webm')) {
+            // Safari/iOSではwebmがサポートされていない
+            if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                mimeType = 'audio/mp4';
+            } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+                mimeType = 'audio/wav';
+            } else {
+                mimeType = ''; // ブラウザのデフォルト
+            }
+        }
+
+        console.log('Using MIME type:', mimeType || 'default');
+
+        const options = mimeType ? { mimeType } : {};
         state.mediaRecorder = new MediaRecorder(stream, options);
         state.audioChunks = [];
 
@@ -282,8 +296,15 @@ async function startRecording() {
         };
 
         state.mediaRecorder.onstop = async () => {
-            const audioBlob = new Blob(state.audioChunks, { type: 'audio/webm' });
+            // 実際に録音された形式でBlobを作成
+            const actualMimeType = state.mediaRecorder.mimeType || 'audio/webm';
+            console.log('Creating blob with type:', actualMimeType);
+
+            const audioBlob = new Blob(state.audioChunks, { type: actualMimeType });
             state.recordedBlob = audioBlob;
+
+            console.log('Audio blob created:', audioBlob.size, 'bytes, type:', audioBlob.type);
+
 
             // Stop all tracks
             stream.getTracks().forEach(track => track.stop());
