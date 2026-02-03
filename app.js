@@ -194,12 +194,18 @@ async function transcribeWithGroq(audioBlob) {
 
     elements.apiStatus.innerHTML = '<span class="loading"></span> Groq Whisperで文字起こし中...';
 
+    console.log('Starting Groq transcription...');
+    console.log('Audio blob size:', audioBlob.size, 'bytes');
+    console.log('Audio blob type:', audioBlob.type);
+
     try {
         const formData = new FormData();
         formData.append('file', audioBlob, 'recording.webm');
         formData.append('model', 'whisper-large-v3');
         formData.append('language', 'ja');
         formData.append('response_format', 'json');
+
+        console.log('Sending request to Groq API...');
 
         const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
             method: 'POST',
@@ -209,17 +215,51 @@ async function transcribeWithGroq(audioBlob) {
             body: formData
         });
 
+        console.log('Response status:', response.status);
+        console.log('Response OK:', response.ok);
+
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error?.message || 'API request failed');
+            let errorMessage = '';
+            let errorDetails = '';
+
+            try {
+                const error = await response.json();
+                errorDetails = JSON.stringify(error, null, 2);
+                console.error('Groq API error response:', error);
+
+                if (response.status === 401) {
+                    errorMessage = 'APIキーが無効です。設定を確認してください。';
+                } else if (response.status === 429) {
+                    errorMessage = 'APIの使用制限を超えました。しばらく待ってから再試行してください。';
+                } else if (response.status === 400) {
+                    errorMessage = '音声ファイル形式が無効です。';
+                } else {
+                    errorMessage = error.error?.message || `APIエラー (${response.status})`;
+                }
+            } catch (e) {
+                errorMessage = `HTTPエラー: ${response.status} ${response.statusText}`;
+                console.error('Failed to parse error response:', e);
+            }
+
+            throw new Error(errorMessage);
         }
 
         const data = await response.json();
+        console.log('Transcription successful:', data);
+
         elements.apiStatus.textContent = '✅ 文字起こし完了';
         return data.text;
     } catch (error) {
         console.error('Groq API error:', error);
-        showToast(`⚠️ Groq APIエラー: ${error.message}`);
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+
+        let userMessage = error.message;
+        if (error.message.includes('Failed to fetch')) {
+            userMessage = 'ネットワークエラー。インターネット接続を確認してください。';
+        }
+
+        showToast(`⚠️ ${userMessage}`);
         elements.apiStatus.textContent = '❌ 文字起こし失敗';
         return null;
     }
