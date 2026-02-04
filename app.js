@@ -245,16 +245,34 @@ async function transcribeWithGroq(audioBlob) {
         formData.append('response_format', 'json');
 
         logToDebug('Sending request to Groq API...');
-
-        const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+        logToDebug('Request details', {
+            url: 'https://api.groq.com/openai/v1/audio/transcriptions',
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${state.groqApiKey}`
-            },
-            body: formData
+            fileSize: audioBlob.size,
+            fileName: filename
         });
 
-        logToDebug(`Response status: ${response.status} ${response.statusText}`);
+        let response;
+        try {
+            response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${state.groqApiKey}`
+                },
+                body: formData
+            });
+
+            logToDebug(`Response received: ${response.status} ${response.statusText}`);
+        } catch (fetchError) {
+            // Fetch自体が失敗した場合（ネットワークエラー、CORS等）
+            logToDebug('Fetch failed', {
+                error: fetchError.message,
+                name: fetchError.name,
+                type: 'NetworkError'
+            });
+
+            throw new Error(`ネットワークエラー: ${fetchError.message}. iPhoneの場合、Wi-Fi接続を確認するか、モバイルデータ通信を試してください。`);
+        }
 
         if (!response.ok) {
             let errorMessage = '';
@@ -268,7 +286,9 @@ async function transcribeWithGroq(audioBlob) {
                 } else if (response.status === 429) {
                     errorMessage = 'API制限超過 429';
                 } else if (response.status === 400) {
-                    errorMessage = '音声形式エラー 400';
+                    errorMessage = '音声形式エラー 400: ' + (error.error?.message || '不明');
+                } else if (response.status === 413) {
+                    errorMessage = 'ファイルサイズが大きすぎます 413';
                 } else {
                     errorMessage = error.error?.message || `APIエラー (${response.status})`;
                 }
@@ -289,8 +309,10 @@ async function transcribeWithGroq(audioBlob) {
         logToDebug('Exception caught', error);
 
         let userMessage = error.message;
-        if (error.message.includes('Failed to fetch')) {
-            userMessage = 'ネットワークエラー（接続失敗）';
+
+        // より具体的なエラーメッセージ
+        if (error.message.includes('Failed to fetch') || error.message.includes('Load failed')) {
+            userMessage = 'iPhoneネットワークエラー。Wi-Fi接続を確認するか、Safari→設定→プライバシーとセキュリティで「サイト越えトラッキングを防ぐ」をOFFにしてください。';
         }
 
         showToast(`⚠️ ${userMessage}`);
