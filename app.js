@@ -304,20 +304,24 @@ async function startRecording() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-        // MediaRecorder setup - Safari互換性を考慮
-        let mimeType = 'audio/webm';
-        if (!MediaRecorder.isTypeSupported('audio/webm')) {
-            // Safari/iOSではwebmがサポートされていない
-            if (MediaRecorder.isTypeSupported('audio/mp4')) {
-                mimeType = 'audio/mp4';
-            } else if (MediaRecorder.isTypeSupported('audio/wav')) {
-                mimeType = 'audio/wav';
-            } else {
-                mimeType = ''; // ブラウザのデフォルト
-            }
-        }
+        // MediaRecorder setup - Safari/iOS互換性を最優先
+        // Safari/iOSではopus codecが問題を起こすため、mp4を優先
+        let mimeType = '';
 
-        console.log('Using MIME type:', mimeType || 'default');
+        // iOS/SafariではMP4ベースを最優先
+        if (MediaRecorder.isTypeSupported('audio/mp4')) {
+            mimeType = 'audio/mp4';
+        } else if (MediaRecorder.isTypeSupported('audio/webm;codecs=pcm')) {
+            // PCM codecはより互換性が高い
+            mimeType = 'audio/webm;codecs=pcm';
+        } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+            mimeType = 'audio/webm';
+        } else if (MediaRecorder.isTypeSupported('audio/wav')) {
+            mimeType = 'audio/wav';
+        }
+        // それでもダメならブラウザのデフォルト
+
+        logToDebug('MediaRecorder MIME type selected', { mimeType: mimeType || 'default' });
 
         const options = mimeType ? { mimeType } : {};
         state.mediaRecorder = new MediaRecorder(stream, options);
