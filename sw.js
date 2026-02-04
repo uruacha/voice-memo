@@ -1,77 +1,32 @@
-const CACHE_NAME = 'voice-memo-v3'; // Groq API バイパス対応
-const URLS_TO_CACHE = [
-    './',
-    './index.html',
-    './styles.css',
-    './app.js',
-    './manifest.json',
-    './icon-192.png',
-    './icon-512.png'
-];
+// Service Worker Self-Destruct
+// 既存のService Workerを強制的に削除し、キャッシュをクリアするためのスクリプト
 
-// Install event - cache resources
 self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then((cache) => {
-                console.log('Opened cache');
-                return cache.addAll(URLS_TO_CACHE);
-            })
-    );
+    // 直ちにアクティブ化
+    self.skipWaiting();
 });
 
-// Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
     event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheName !== CACHE_NAME) {
-                        console.log('Deleting old cache:', cacheName);
+        clients.claim().then(() => {
+            // 全てのキャッシュを削除
+            return caches.keys().then((cacheNames) => {
+                return Promise.all(
+                    cacheNames.map((cacheName) => {
+                        console.log('Deleting cache:', cacheName);
                         return caches.delete(cacheName);
-                    }
-                })
-            );
+                    })
+                );
+            });
+        }).then(() => {
+            // 自分自身を登録解除
+            console.log('Service Worker unregistering...');
+            return self.registration.unregister();
         })
     );
 });
 
-// Fetch event - serve from cache, fallback to network
+// リクエストは全てネットワークにスルー（何もキャッチしない）
 self.addEventListener('fetch', (event) => {
-    // 外部APIリクエスト（Groq API等）はService Workerをバイパス
-    const url = new URL(event.request.url);
-    if (url.hostname !== self.location.hostname) {
-        // 外部ドメインへのリクエストはそのまま通す
-        return;
-    }
-
-    event.respondWith(
-        caches.match(event.request)
-            .then((response) => {
-                // Cache hit - return response
-                if (response) {
-                    return response;
-                }
-
-                // Clone the request
-                const fetchRequest = event.request.clone();
-
-                return fetch(fetchRequest).then((response) => {
-                    // Check if valid response
-                    if (!response || response.status !== 200 || response.type !== 'basic') {
-                        return response;
-                    }
-
-                    // Clone the response
-                    const responseToCache = response.clone();
-
-                    caches.open(CACHE_NAME)
-                        .then((cache) => {
-                            cache.put(event.request, responseToCache);
-                        });
-
-                    return response;
-                });
-            })
-    );
+    return;
 });

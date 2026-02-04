@@ -15,7 +15,7 @@
     <link rel="apple-touch-icon" href="icon-192.png">
 
     <!-- Stylesheets -->
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=2.0">
 
     <!-- Preconnect for API -->
     <link rel="preconnect" href="https://api.groq.com">
@@ -148,7 +148,7 @@
 
     <!-- Version & Debug Info -->
     <div style="text-align: center; margin-top: 20px; color: #666; font-size: 0.8rem;">
-        Version 1.1 (Debug Mode)
+        Version 2.0 (Cache Cleared)
     </div>
 
     <div id="debugLog"
@@ -156,19 +156,24 @@
     </div>
 
     <!-- Scripts -->
-    <script src="app.js"></script>
+    <script src="app.js?v=2.0"></script>
 
-    <!-- Service Worker強制削除 (iPhone互換性のため) -->
+    <!-- Service Worker強制削除 -->
     <script>
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then(function (registrations) {
-                for (let reg of registrations) {
-                    reg.unregister();
+                console.log('Found user registrations:', registrations.length);
+                for (let registration of registrations) {
+                    registration.unregister().then(() => console.log('Unregistered SW'));
                 }
             });
+            // 古いキャッシュも全削除
             if ('caches' in window) {
                 caches.keys().then(function (names) {
-                    for (let name of names) caches.delete(name);
+                    for (let name of names) {
+                        console.log('Deleting cache:', name);
+                        caches.delete(name);
+                    }
                 });
             }
         }
