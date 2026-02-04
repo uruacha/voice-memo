@@ -185,6 +185,29 @@ function initializeSpeechRecognition() {
 }
 
 
+// ===== Debug Helper =====
+function logToDebug(message, data = null) {
+    console.log(message, data);
+    const debugLog = document.getElementById('debugLog');
+    if (debugLog) {
+        debugLog.style.display = 'block';
+        const time = new Date().toLocaleTimeString();
+        let logMsg = `[${time}] ${message}`;
+        if (data) {
+            try {
+                if (data instanceof Error) {
+                    logMsg += `\nError: ${data.message}`;
+                } else if (typeof data === 'object') {
+                    logMsg += `\n${JSON.stringify(data, null, 2)}`;
+                } else {
+                    logMsg += `\n${data}`;
+                }
+            } catch (e) { logMsg += `\n(Unserializable data)`; }
+        }
+        debugLog.textContent = logMsg + "\n----------------\n" + debugLog.textContent;
+    }
+}
+
 // ===== Groq Whisper API =====
 async function transcribeWithGroq(audioBlob) {
     if (!state.groqApiKey) {
@@ -208,17 +231,20 @@ async function transcribeWithGroq(audioBlob) {
 
     const filename = `recording.${extension}`;
 
-    console.log('Starting Groq transcription...');
-    console.log(`Audio info: ${audioBlob.size} bytes, type: ${audioBlob.type}, filename: ${filename}`);
+    logToDebug('Starting transcription', {
+        size: audioBlob.size,
+        type: audioBlob.type,
+        filename: filename
+    });
 
     try {
         const formData = new FormData();
-        formData.append('file', audioBlob, filename); // 動的なファイル名を使用
+        formData.append('file', audioBlob, filename);
         formData.append('model', 'whisper-large-v3');
         formData.append('language', 'ja');
         formData.append('response_format', 'json');
 
-        console.log('Sending request to Groq API...');
+        logToDebug('Sending request to Groq API...');
 
         const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
             method: 'POST',
@@ -228,48 +254,43 @@ async function transcribeWithGroq(audioBlob) {
             body: formData
         });
 
-        console.log('Response status:', response.status);
-        console.log('Response OK:', response.ok);
+        logToDebug(`Response status: ${response.status} ${response.statusText}`);
 
         if (!response.ok) {
             let errorMessage = '';
-            let errorDetails = '';
 
             try {
                 const error = await response.json();
-                errorDetails = JSON.stringify(error, null, 2);
-                console.error('Groq API error response:', error);
+                logToDebug('Error response body:', error);
 
                 if (response.status === 401) {
-                    errorMessage = 'APIキーが無効です。設定を確認してください。';
+                    errorMessage = 'APIキーが無効です 401';
                 } else if (response.status === 429) {
-                    errorMessage = 'APIの使用制限を超えました。しばらく待ってから再試行してください。';
+                    errorMessage = 'API制限超過 429';
                 } else if (response.status === 400) {
-                    errorMessage = '音声ファイル形式が無効です。';
+                    errorMessage = '音声形式エラー 400';
                 } else {
                     errorMessage = error.error?.message || `APIエラー (${response.status})`;
                 }
             } catch (e) {
-                errorMessage = `HTTPエラー: ${response.status} ${response.statusText}`;
-                console.error('Failed to parse error response:', e);
+                errorMessage = `HTTPエラー: ${response.status}`;
+                logToDebug('Failed to parse JSON error', e);
             }
 
             throw new Error(errorMessage);
         }
 
         const data = await response.json();
-        console.log('Transcription successful:', data);
+        logToDebug('Success!', { textLength: data.text?.length });
 
         elements.apiStatus.textContent = '✅ 文字起こし完了';
         return data.text;
     } catch (error) {
-        console.error('Groq API error:', error);
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
+        logToDebug('Exception caught', error);
 
         let userMessage = error.message;
         if (error.message.includes('Failed to fetch')) {
-            userMessage = 'ネットワークエラー。インターネット接続を確認してください。';
+            userMessage = 'ネットワークエラー（接続失敗）';
         }
 
         showToast(`⚠️ ${userMessage}`);
