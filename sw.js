@@ -1,4 +1,4 @@
-const CACHE_NAME = 'voice-memo-v1';
+const CACHE_NAME = 'voice-memo-v2'; // キャッシュバージョン更新
 const URLS_TO_CACHE = [
     './',
     './index.html',
