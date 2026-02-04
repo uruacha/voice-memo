@@ -157,6 +157,22 @@
 
     <!-- Scripts -->
     <script src="app.js"></script>
+
+    <!-- Service Worker強制削除 (iPhone互換性のため) -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function (registrations) {
+                for (let reg of registrations) {
+                    reg.unregister();
+                }
+            });
+            if ('caches' in window) {
+                caches.keys().then(function (names) {
+                    for (let name of names) caches.delete(name);
+                });
+            }
+        }
+    </script>
 </body>
 
 </html>
