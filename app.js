@@ -194,13 +194,26 @@ async function transcribeWithGroq(audioBlob) {
 
     elements.apiStatus.innerHTML = '<span class="loading"></span> Groq Whisperで文字起こし中...';
 
+    // MIMEタイプから適切な拡張子を決定
+    let extension = 'webm';
+    if (audioBlob.type.includes('mp4')) {
+        extension = 'm4a';
+    } else if (audioBlob.type.includes('wav')) {
+        extension = 'wav';
+    } else if (audioBlob.type.includes('ogg')) {
+        extension = 'ogg';
+    } else if (audioBlob.type.includes('mpeg')) {
+        extension = 'mp3';
+    }
+
+    const filename = `recording.${extension}`;
+
     console.log('Starting Groq transcription...');
-    console.log('Audio blob size:', audioBlob.size, 'bytes');
-    console.log('Audio blob type:', audioBlob.type);
+    console.log(`Audio info: ${audioBlob.size} bytes, type: ${audioBlob.type}, filename: ${filename}`);
 
     try {
         const formData = new FormData();
-        formData.append('file', audioBlob, 'recording.webm');
+        formData.append('file', audioBlob, filename); // 動的なファイル名を使用
         formData.append('model', 'whisper-large-v3');
         formData.append('language', 'ja');
         formData.append('response_format', 'json');
@@ -436,17 +449,29 @@ function downloadAudio() {
         return;
     }
 
+    // MIMEタイプから適切な拡張子を決定
+    let extension = 'webm';
+    if (state.recordedBlob.type.includes('mp4')) {
+        extension = 'm4a';
+    } else if (state.recordedBlob.type.includes('wav')) {
+        extension = 'wav';
+    } else if (state.recordedBlob.type.includes('ogg')) {
+        extension = 'ogg';
+    } else if (state.recordedBlob.type.includes('mpeg')) {
+        extension = 'mp3';
+    }
+
     const { filename } = formatDate();
     const url = URL.createObjectURL(state.recordedBlob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${filename}_recording.webm`;
+    a.download = `${filename}_recording.${extension}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    showToast('🎵 音声ファイルをダウンロードしました');
+    showToast(`🎵 音声ファイルをダウンロードしました (.${extension})`);
 }
 
 // ===== Settings =====
