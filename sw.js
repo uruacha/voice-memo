@@ -1,4 +1,4 @@
-const CACHE_NAME = 'voice-memo-v2'; // キャッシュバージョン更新
+const CACHE_NAME = 'voice-memo-v3'; // Groq API バイパス対応
 const URLS_TO_CACHE = [
     './',
     './index.html',
@@ -38,6 +38,13 @@ self.addEventListener('activate', (event) => {
 
 // Fetch event - serve from cache, fallback to network
 self.addEventListener('fetch', (event) => {
+    // 外部APIリクエスト（Groq API等）はService Workerをバイパス
+    const url = new URL(event.request.url);
+    if (url.hostname !== self.location.hostname) {
+        // 外部ドメインへのリクエストはそのまま通す
+        return;
+    }
+
     event.respondWith(
         caches.match(event.request)
             .then((response) => {
