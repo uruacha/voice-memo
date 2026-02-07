@@ -52,6 +52,9 @@ function formatDate() {
     const minute = String(now.getMinutes()).padStart(2, '0');
     return {
         filename: `${year}-${month}-${day}_${hour}-${minute}`,
+        formattedDate: `${year}-${month}-${day}`,
+        formattedTime: `${hour}:${minute}`,
+        // Legacy names for backward compatibility
         dateString: `${year}-${month}-${day}`,
         timeString: `${hour}:${minute}`
     };
@@ -459,25 +462,38 @@ function stopRecording() {
 
 // ===== Download Functions =====
 function downloadMarkdown() {
-    const { filename, dateString, timeString } = formatDate();
-    const transcriptText = elements.transcription.value || '(文字起こしなし)';
+    if (!elements.transcription.value.trim()) {
+        showToast('⚠️ 文字起こし結果がありません');
+        return;
+    }
 
-    const markdown = `---
-作成日: ${dateString}
-時刻: ${timeString}
+    const { filename, formattedDate, formattedTime } = formatDate();
+    const transcriptionText = elements.transcription.value.trim();
+
+    // 音声ファイルの拡張子を決定
+    let audioExtension = 'webm';
+    if (state.recordedBlob && state.recordedBlob.type.includes('mp4')) {
+        audioExtension = 'm4a';
+    } else if (state.recordedBlob && state.recordedBlob.type.includes('wav')) {
+        audioExtension = 'wav';
+    }
+
+    const markdownContent = `---
+作成日: ${formattedDate}
+時刻: ${formattedTime}
 タイトル: 音声メモ
 タグ: [音声メモ, 文字起こし]
 ---
 
 # 文字起こし結果
 
-${transcriptText}
+${transcriptionText}
 
 ## 音声ファイル
-![[${filename}_recording.webm]]
+![[${filename}_recording.${audioExtension}]]
 `;
 
-    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+    const blob = new Blob([markdownContent], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -487,7 +503,49 @@ ${transcriptText}
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 
-    showToast('📄 Markdownファイルをダウンロードしました');
+    showToast('📝 Markdownファイルをダウンロードしました');
+}
+
+// Obsidianに共有（Web Share API）
+async function shareToObsidian() {
+    if (!elements.transcription.value.trim()) {
+        showToast('⚠️ 文字起こし結果がありません');
+        return;
+    }
+
+    const { filename, formattedDate, formattedTime } = formatDate();
+    const transcriptionText = elements.transcription.value.trim();
+
+    const markdownContent = `---
+作成日: ${formattedDate}
+時刻: ${formattedTime}
+タイトル: 音声メモ
+タグ: [音声メモ, 文字起こし]
+---
+
+# 文字起こし結果
+
+${transcriptionText}
+`;
+
+    // Web Share APIをサポートしているか確認
+    if (navigator.share) {
+        try {
+            await navigator.share({
+                title: `音声メモ ${formattedDate} ${formattedTime}`,
+                text: markdownContent,
+                // filesもサポートされていればMarkdownファイルとして共有
+            });
+            showToast('✅ Obsidianに共有しました');
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error('Share failed:', error);
+                showToast('⚠️ 共有に失敗しました');
+            }
+        }
+    } else {
+        showToast('⚠️ このブラウザは共有機能に対応していません');
+    }
 }
 
 function downloadAudio() {
@@ -585,8 +643,9 @@ elements.clearBtn.addEventListener('click', () => {
     }
 });
 
-elements.downloadMarkdown.addEventListener('click', downloadMarkdown);
-elements.downloadAudio.addEventListener('click', downloadAudio);
+document.getElementById('shareObsidian').addEventListener('click', shareToObsidian);
+document.getElementById('downloadMarkdown').addEventListener('click', downloadMarkdown);
+document.getElementById('downloadAudio').addEventListener('click', downloadAudio);
 
 elements.settingsBtn.addEventListener('click', openSettings);
 elements.closeModal.addEventListener('click', closeSettings);
